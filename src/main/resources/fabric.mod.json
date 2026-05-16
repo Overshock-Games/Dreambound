@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "dreambound",
+  "version": "${version}",
+  "name": "Dreambound",
+  "description": "A server-side Fabric mod.",
+  "authors": [],
+  "contact": {},
+  "license": "All Rights Reserved",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.dreambound.DreamboundMod"
+    ],
+    "cardinal-components": [
+      "com.dreambound.ModComponents"
+    ]
+  },
+  "mixins": [
+    "dreambound.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.19.2",
+    "minecraft": "~26.1",
+    "fabric-api": "*",
+    "cardinal-components-base": ">=8.0.0",
+    "cardinal-components-entity": ">=8.0.0"
+  },
+  "suggests": {
+    "universal-graves": "*"
+  },
+  "custom": {
+    "cardinal-components": ["dreambound:dream_state"]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "package": "com.dreambound.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "mixins": [
+    "PlayerDeathDropMixin",
+    "ServerPlayerDeathMixin"
+  ],
+  "server": [],
+  "client": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
