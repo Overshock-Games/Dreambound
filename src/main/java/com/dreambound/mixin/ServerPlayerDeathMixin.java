@@ -3,6 +3,7 @@ package com.dreambound.mixin;
 import com.dreambound.DreamboundMod;
 import com.dreambound.DeathSnapshotCalculator;
 import com.dreambound.ModComponents;
+import com.dreambound.compat.TrinketsCompat;
 import com.dreambound.component.DreamStateComponent;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -34,9 +35,15 @@ public abstract class ServerPlayerDeathMixin {
         DeathSnapshotCalculator.Result result = DeathSnapshotCalculator.calculate(component, player.getInventory());
         List<ItemStackTemplate> pending = result.pending();
         component.setPendingRespawnItems(pending);
+
+        List<ItemStack> allForfeited = new java.util.ArrayList<>(result.forfeited());
+        if (DreamboundMod.TRINKETS_LOADED) {
+            TrinketsCompat.calculateDeathDrop(player, component, allForfeited);
+        }
+
         DreamboundMod.buildGraveKeptCounts(player, pending);
-        int forfeitedItems = result.forfeited().stream().mapToInt(ItemStack::getCount).sum();
-        if (result.forfeited().isEmpty()) {
+        int forfeitedItems = allForfeited.stream().mapToInt(ItemStack::getCount).sum();
+        if (allForfeited.isEmpty()) {
             DreamboundMod.graveCompassCandidates.remove(player.getUUID());
         } else {
             DreamboundMod.graveCompassCandidates.add(player.getUUID());
@@ -63,16 +70,16 @@ public abstract class ServerPlayerDeathMixin {
                 player.getName().getString(),
                 pending.stream().filter(t -> t != null).count(),
                 pending.stream().filter(t -> t != null).mapToInt(ItemStackTemplate::count).sum(),
-                result.forfeited().size(),
+                allForfeited.size(),
                 forfeitedItems,
-                !result.forfeited().isEmpty()
+                !allForfeited.isEmpty()
             );
         } else {
             DreamboundMod.LOGGER.debug(
                 "Dreambound: precomputed Universal Graves death handling for {} - {} pending, {} forfeited",
                 player.getName().getString(),
                 pending.stream().filter(t -> t != null).count(),
-                result.forfeited().size()
+                allForfeited.size()
             );
         }
     }

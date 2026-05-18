@@ -27,7 +27,8 @@
     "cardinal-components-entity": ">=8.0.0"
   },
   "suggests": {
-    "universal-graves": "*"
+    "universal-graves": "*",
+    "trinkets_updated": "*"
   },
   "custom": {
     "cardinal-components": ["dreambound:dream_state"]

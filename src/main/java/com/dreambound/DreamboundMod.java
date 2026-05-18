@@ -1,5 +1,6 @@
 package com.dreambound;
 
+import com.dreambound.compat.TrinketsCompat;
 import com.dreambound.compat.UniversalGravesCompat;
 import com.dreambound.component.DreamStateComponent;
 import net.fabricmc.api.ModInitializer;
@@ -7,12 +8,14 @@ import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.entity.event.v1.EntitySleepEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -22,7 +25,10 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
+import net.minecraft.core.Direction;
+import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.RespawnAnchorBlock;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.LevelData;
 import org.slf4j.Logger;
@@ -43,6 +49,7 @@ public class DreamboundMod implements ModInitializer {
 
 	public static DreamboundConfig CONFIG;
 	public static boolean UNIVERSAL_GRAVES_LOADED;
+	public static boolean TRINKETS_LOADED;
 	private static boolean universalGravesRegistered;
 
 	private static final int SLEEP_COMPLETION_GRACE_TICKS = 20;
@@ -67,6 +74,9 @@ public class DreamboundMod implements ModInitializer {
 		CommandRegistrationCallback.EVENT.register(
 			(dispatcher, registryAccess, environment) -> DreamboundCommand.register(dispatcher)
 		);
+
+		TRINKETS_LOADED = FabricLoader.getInstance().isModLoaded("trinkets_updated");
+		if (TRINKETS_LOADED) LOGGER.info("Dreambound: Trinkets Updated detected - trinket slot protection active.");
 
 		refreshUniversalGravesCompat();
 
@@ -97,11 +107,22 @@ public class DreamboundMod implements ModInitializer {
 		for (ItemStackTemplate t : pending) {
 			if (t != null) counts.merge(t.item().value(), t.count(), Integer::sum);
 		}
+		// Also count pending trinket items so UG doesn't put them in the grave.
+		if (TRINKETS_LOADED) {
+			var trinketPending = ModComponents.DREAM_STATE.get(player).getPendingTrinketItems();
+			if (trinketPending != null) {
+				for (ItemStackTemplate t : trinketPending.values()) {
+					if (t != null) counts.merge(t.item().value(), t.count(), Integer::sum);
+				}
+			}
+		}
 		graveKeptCounts.put(player.getUUID(), counts);
 	}
 
 	private static void saveDreamSnapshot(ServerPlayer player) {
-		ModComponents.DREAM_STATE.get(player).captureInventory(player);
+		DreamStateComponent component = ModComponents.DREAM_STATE.get(player);
+		component.captureInventory(player);
+		if (TRINKETS_LOADED) TrinketsCompat.captureInventory(player, component);
 		if (CONFIG.notifySnapshotSaved) {
 			player.sendSystemMessage(
 				Component.literal("Dreambound").withStyle(ChatFormatting.DARK_PURPLE)
@@ -116,9 +137,13 @@ public class DreamboundMod implements ModInitializer {
 		// --- Beds: detect sleep start to record thundering state ---
 		EntitySleepEvents.START_SLEEPING.register((entity, sleepingPos) -> {
 			if (!CONFIG.enableBedSleepSnapshots) return;
-			if (entity instanceof ServerPlayer player) {
-				sleepAttempts.put(player.getUUID(), new SleepAttempt(player.level().isThundering(), 0));
-			}
+			if (!(entity instanceof ServerPlayer player)) return;
+			Level level = player.level();
+			boolean thundering = level.isThundering();
+			// Skip if daytime and not thundering — sleep will be rejected immediately.
+			// START_SLEEPING fires even for rejected attempts, so we must guard here.
+			if (level.isBrightOutside() && !thundering) return;
+			sleepAttempts.put(player.getUUID(), new SleepAttempt(thundering, 0));
 		});
 
 		// --- Beds: mark wake-up; the server tick callback below evaluates success ---
@@ -159,18 +184,69 @@ public class DreamboundMod implements ModInitializer {
 			boolean notCharging = !serverPlayer.getItemInHand(hand).is(Items.GLOWSTONE);
 
 			if (isCharged && inNether && notCharging) {
-				// Dedup: skip if the player is clicking the anchor they already have set.
-				LevelData.RespawnData current = serverPlayer.getRespawnConfig().respawnData();
-				BlockPos anchorPos = hitResult.getBlockPos();
-				boolean sameAnchor = current.pos().equals(anchorPos)
-					&& current.dimension().equals(level.dimension());
-
-				if (!sameAnchor) {
-					saveDreamSnapshot(serverPlayer);
-				}
+				saveDreamSnapshot(serverPlayer);
 			}
 
 			return InteractionResult.PASS;
+		});
+
+		// --- Bed / respawn-anchor destruction: clear snapshot if spawn is invalidated ---
+		// Uses BEFORE so the block is still in the world (both bed halves readable) and we
+		// run before any other mod's listener can throw and cut off our code. Always returns true.
+		PlayerBlockBreakEvents.BEFORE.register((world, player, pos, state, blockEntity) -> {
+			if (!CONFIG.clearSnapshotOnSpawnpointDestroyed) return true;
+			if (world.isClientSide() || !(player instanceof ServerPlayer)) return true;
+
+			boolean isBed    = state.getBlock() instanceof BedBlock;
+			boolean isAnchor = state.getBlock() instanceof RespawnAnchorBlock;
+			if (!isBed && !isAnchor) return true;
+
+			// For beds, build the set of positions that belong to this bed using the
+			// facing property. The block is still in the world at BEFORE time, so both
+			// halves are present and the facing value is reliable.
+			final BlockPos bedPosA, bedPosB;
+			if (isBed) {
+				Direction facing = state.getValue(BlockStateProperties.HORIZONTAL_FACING);
+				bedPosA = pos.relative(facing);
+				bedPosB = pos.relative(facing.getOpposite());
+			} else {
+				bedPosA = null;
+				bedPosB = null;
+			}
+
+			MinecraftServer server = ((net.minecraft.server.level.ServerLevel) world).getServer();
+
+			for (ServerPlayer online : server.getPlayerList().getPlayers()) {
+				try {
+					var respawnConfig = online.getRespawnConfig();
+					if (respawnConfig == null) continue;
+					LevelData.RespawnData respawnData = respawnConfig.respawnData();
+					if (respawnData == null) continue;
+					if (!respawnData.dimension().equals(world.dimension())) continue;
+
+					BlockPos spawnPos = respawnData.pos();
+					boolean invalidated = isBed
+						? (spawnPos.equals(pos) || spawnPos.equals(bedPosA) || spawnPos.equals(bedPosB))
+						: spawnPos.equals(pos);
+
+					if (invalidated) {
+						DreamStateComponent comp = ModComponents.DREAM_STATE.get(online);
+						if (comp.hasSnapshot()) {
+							comp.clearSnapshot();
+							LOGGER.debug("Dreambound: cleared snapshot for {} — spawnpoint block destroyed", online.getName().getString());
+							online.sendSystemMessage(
+								Component.literal("Dreambound").withStyle(ChatFormatting.DARK_PURPLE)
+									.append(Component.literal(" | ").withStyle(ChatFormatting.GRAY))
+									.append(Component.literal("Your dream fades — your resting place has been lost.").withStyle(ChatFormatting.LIGHT_PURPLE))
+							);
+						}
+					}
+				} catch (Exception e) {
+					LOGGER.warn("Dreambound: error checking spawnpoint destruction for {}", online.getName().getString(), e);
+				}
+			}
+
+			return true; // never cancel the break
 		});
 
 		// --- Respawn restoration ---
@@ -184,9 +260,27 @@ public class DreamboundMod implements ModInitializer {
 			DreamStateComponent newComponent = ModComponents.DREAM_STATE.get(newPlayer);
 			newComponent.setPendingRespawnItems(pending);
 			newComponent.setPendingXp(oldComponent.getPendingXp());
+			newComponent.setPendingTrinketItems(oldComponent.getPendingTrinketItems());
 			oldComponent.setPendingRespawnItems(null);
 			oldComponent.setPendingXp(0);
+			oldComponent.setPendingTrinketItems(null);
 			graveKeptCounts.remove(oldPlayer.getUUID());
+
+			// If the player respawned via a respawn anchor that is now depleted, mark
+			// the snapshot for clearing after items are restored this death.
+			if (CONFIG.clearSnapshotOnSpawnpointDestroyed) {
+				LevelData.RespawnData respawnData = oldPlayer.getRespawnConfig().respawnData();
+				if (respawnData != null) {
+					ServerLevel anchorLevel = oldPlayer.level().getServer().getLevel(respawnData.dimension());
+					if (anchorLevel != null) {
+						BlockState anchorState = anchorLevel.getBlockState(respawnData.pos());
+						if (anchorState.getBlock() instanceof RespawnAnchorBlock
+								&& anchorState.getValue(RespawnAnchorBlock.CHARGE) == 0) {
+							newComponent.setClearSnapshotAfterRestore(true);
+						}
+					}
+				}
+			}
 
 			if (UNIVERSAL_GRAVES_LOADED) {
 				delayedRespawnRestores.put(newPlayer.getUUID(), newPlayer.level().getServer().getTickCount());
@@ -248,11 +342,14 @@ public class DreamboundMod implements ModInitializer {
 			}
 		}
 
+		if (TRINKETS_LOADED) TrinketsCompat.restoreFrom(player, component);
+
 		component.setPendingRespawnItems(null);
 		component.setPendingXp(0);
 
-		if (CONFIG.clearSnapshotOnRespawn) {
-			component.clearSnapshot();
+		if (CONFIG.clearSnapshotOnRespawn || component.isClearSnapshotAfterRestore()) {
+			component.clearSnapshot(); // also clears trinket snapshot via clearSnapshot()
+			component.setClearSnapshotAfterRestore(false);
 		}
 
 		if (CONFIG.notifyRespawnRestore && (restoredItems > 0 || restoredXp > 0)) {

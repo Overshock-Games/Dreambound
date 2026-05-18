@@ -19,6 +19,7 @@ public class DreamboundConfig {
     public boolean restoreExperience = true;
     public int experienceLossPercent = 0;
     public boolean clearSnapshotOnRespawn = false;
+    public boolean clearSnapshotOnSpawnpointDestroyed = true;
     public boolean notifySnapshotSaved = true;
     public boolean notifyRespawnRestore = true;
     public boolean debugUniversalGravesCompat = false;
@@ -49,6 +50,7 @@ public class DreamboundConfig {
         restoreExperience = getBoolean(properties, "restoreExperience", restoreExperience);
         experienceLossPercent = getInt(properties, "experienceLossPercent", experienceLossPercent, 0, 100);
         clearSnapshotOnRespawn = getBoolean(properties, "clearSnapshotOnRespawn", clearSnapshotOnRespawn);
+        clearSnapshotOnSpawnpointDestroyed = getBoolean(properties, "clearSnapshotOnSpawnpointDestroyed", clearSnapshotOnSpawnpointDestroyed);
         notifySnapshotSaved = getBoolean(properties, "notifySnapshotSaved", notifySnapshotSaved);
         notifyRespawnRestore = getBoolean(properties, "notifyRespawnRestore", notifyRespawnRestore);
         debugUniversalGravesCompat = getBoolean(properties, "debugUniversalGravesCompat", debugUniversalGravesCompat);
@@ -109,6 +111,10 @@ public class DreamboundConfig {
             # Clear the stored dream snapshot after it is used on respawn.
             clearSnapshotOnRespawn=%s
 
+            # Clear the stored dream snapshot when the player's bed or respawn anchor is destroyed,
+            # or when a respawn anchor reaches 0 charges after being used to respawn.
+            clearSnapshotOnSpawnpointDestroyed=%s
+
             # Send a styled message after a bed or respawn-anchor snapshot is saved.
             notifySnapshotSaved=%s
 
@@ -125,6 +131,7 @@ public class DreamboundConfig {
                 restoreExperience,
                 experienceLossPercent,
                 clearSnapshotOnRespawn,
+                clearSnapshotOnSpawnpointDestroyed,
                 notifySnapshotSaved,
                 notifyRespawnRestore,
                 debugUniversalGravesCompat

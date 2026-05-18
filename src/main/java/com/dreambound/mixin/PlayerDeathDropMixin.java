@@ -3,6 +3,7 @@ package com.dreambound.mixin;
 import com.dreambound.DreamboundMod;
 import com.dreambound.DeathSnapshotCalculator;
 import com.dreambound.ModComponents;
+import com.dreambound.compat.TrinketsCompat;
 import com.dreambound.component.DreamStateComponent;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -67,7 +68,12 @@ public abstract class PlayerDeathDropMixin {
             component.setPendingXp(0);
         }
 
-        for (ItemStack stack : result.forfeited()) {
+        List<ItemStack> allForfeited = new java.util.ArrayList<>(result.forfeited());
+        if (DreamboundMod.TRINKETS_LOADED) {
+            TrinketsCompat.calculateDeathDrop(player, component, allForfeited);
+        }
+
+        for (ItemStack stack : allForfeited) {
             player.drop(stack, true, false);
         }
 
@@ -77,7 +83,7 @@ public abstract class PlayerDeathDropMixin {
             "Dreambound: death drop intercepted for {} - {} pending, {} forfeited",
             player.getName().getString(),
             pending.stream().filter(t -> t != null).count(),
-            result.forfeited().size()
+            allForfeited.size()
         );
     }
 }

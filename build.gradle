@@ -11,6 +11,10 @@ repositories {
 		name = 'Ladysnake Mods'
 		url = 'https://maven.ladysnake.org/releases'
 	}
+	maven {
+		name = 'Nucleoid'
+		url = 'https://maven.nucleoid.xyz/releases'
+	}
 }
 
 loom {
@@ -29,6 +33,9 @@ dependencies {
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 
 	implementation "org.ladysnake.cardinal-components-api:cardinal-components-entity:${project.cardinal_components_version}"
+
+	// Optional: Trinkets Updated support (not required at runtime; guarded by FabricLoader.isModLoaded)
+	implementation "eu.pb4:trinkets:${project.trinkets_version}"
 
 }
 

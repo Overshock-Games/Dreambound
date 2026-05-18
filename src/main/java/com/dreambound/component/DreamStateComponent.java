@@ -5,6 +5,7 @@ import net.minecraft.world.item.ItemStackTemplate;
 import org.ladysnake.cca.api.v3.component.Component;
 
 import java.util.List;
+import java.util.Map;
 
 public interface DreamStateComponent extends Component {
 
@@ -33,4 +34,22 @@ public interface DreamStateComponent extends Component {
     int getPendingXp();
 
     void setPendingXp(int xp);
+
+    /** Transient flag: when true, clearSnapshot() is called after the pending respawn restore completes. */
+    boolean isClearSnapshotAfterRestore();
+
+    void setClearSnapshotAfterRestore(boolean clear);
+
+    // --- Trinket snapshot (persisted; null = no snapshot) ---
+
+    /** Returns the trinket snapshot as a map of serialized slot reference → item template, or null if none. */
+    Map<String, ItemStackTemplate> getTrinketSnapshot();
+
+    void setTrinketSnapshot(Map<String, ItemStackTemplate> snapshot);
+
+    // --- Pending trinket items (transient; null until death processing sets them) ---
+
+    Map<String, ItemStackTemplate> getPendingTrinketItems();
+
+    void setPendingTrinketItems(Map<String, ItemStackTemplate> items);
 }
