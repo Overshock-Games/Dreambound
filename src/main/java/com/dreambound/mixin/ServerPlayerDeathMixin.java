@@ -2,6 +2,7 @@ package com.dreambound.mixin;
 
 import com.dreambound.DreamboundMod;
 import com.dreambound.DeathSnapshotCalculator;
+import com.dreambound.ExperienceMath;
 import com.dreambound.ModComponents;
 import com.dreambound.compat.TrinketsCompat;
 import com.dreambound.component.DreamStateComponent;
@@ -50,7 +51,7 @@ public abstract class ServerPlayerDeathMixin {
         }
 
         if (DreamboundMod.CONFIG.restoreExperience) {
-            int deathXp = player.totalExperience;
+            int deathXp = ExperienceMath.currentTotal(player);
             int keepXp = DreamboundMod.CONFIG.applyExperienceLoss(Math.min(deathXp, component.getSnapshotXp()));
             int dropXp = deathXp - keepXp;
             component.setPendingXp(keepXp);

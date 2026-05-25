@@ -1,10 +1,10 @@
 package com.dreambound.compat;
 
 import com.dreambound.DreamboundMod;
+import com.dreambound.StackIdentity;
 import net.fabricmc.fabric.api.event.Event;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
 import java.lang.reflect.Field;
@@ -55,34 +55,34 @@ public final class UniversalGravesCompat {
     }
 
     private static InteractionResult onCanAddItem(ServerPlayer player, ItemStack itemStack) {
-        Map<Item, Integer> keptCounts = DreamboundMod.graveKeptCounts.get(player.getUUID());
+        Map<StackIdentity, Integer> keptCounts = DreamboundMod.graveKeptCounts.get(player.getUUID());
         if (keptCounts == null) {
             debug("allowing {} x{} for {} because no kept-count budget exists",
                 itemStack.getItem(), itemStack.getCount(), player.getName().getString());
             return InteractionResult.PASS;
         }
 
-        Item item = itemStack.getItem();
-        int kept = keptCounts.getOrDefault(item, 0);
+        StackIdentity identity = StackIdentity.of(itemStack);
+        int kept = keptCounts.getOrDefault(identity, 0);
         if (kept <= 0) {
             debug("allowing {} x{} for {} because none of that item is dream-kept",
-                item, itemStack.getCount(), player.getName().getString());
+                itemStack.getItem(), itemStack.getCount(), player.getName().getString());
             return InteractionResult.PASS;
         }
 
         int stackCount = itemStack.getCount();
-        keptCounts.put(item, Math.max(0, kept - stackCount));
+        keptCounts.put(identity, Math.max(0, kept - stackCount));
 
         int dropCount = stackCount - kept;
         if (dropCount > 0) {
             itemStack.setCount(dropCount);
             debug("trimmed grave item for {}: {} kept={}, graveGets={}",
-                player.getName().getString(), item, kept, dropCount);
+                player.getName().getString(), itemStack.getItem(), kept, dropCount);
             return InteractionResult.PASS;
         }
 
         debug("blocked grave item for {}: {} x{} is fully dream-kept",
-            player.getName().getString(), item, stackCount);
+            player.getName().getString(), itemStack.getItem(), stackCount);
         return InteractionResult.FAIL; // block from grave
     }
 

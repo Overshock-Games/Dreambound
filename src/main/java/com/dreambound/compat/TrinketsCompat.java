@@ -66,7 +66,7 @@ public final class TrinketsCompat {
             }
 
             if (deathStack.isDamageableItem()) {
-                if (deathStack.getItem() != sleepTemplate.item().value()) {
+                if (!isSameDreamStackIgnoringDamage(deathStack, sleepTemplate)) {
                     forfeited.add(deathStack.copy());
                 } else {
                     ItemStack kept = sleepTemplate.create();
@@ -75,6 +75,11 @@ public final class TrinketsCompat {
                     pending.put(key, ItemStackTemplate.fromNonEmptyStack(kept));
                 }
             } else {
+                if (!ItemStack.isSameItemSameComponents(deathStack, sleepTemplate.create())) {
+                    forfeited.add(deathStack.copy());
+                    return;
+                }
+
                 int keepCount = Math.min(sleepTemplate.count(), deathStack.getCount());
                 int dropCount = deathStack.getCount() - keepCount;
                 if (dropCount > 0) forfeited.add(deathStack.copyWithCount(dropCount));
@@ -118,5 +123,13 @@ public final class TrinketsCompat {
         }
 
         component.setPendingTrinketItems(null);
+    }
+
+    private static boolean isSameDreamStackIgnoringDamage(ItemStack deathStack, ItemStackTemplate sleepTemplate) {
+        ItemStack deathComparable = deathStack.copy();
+        ItemStack sleepComparable = sleepTemplate.create();
+        deathComparable.remove(DataComponents.DAMAGE);
+        sleepComparable.remove(DataComponents.DAMAGE);
+        return ItemStack.isSameItemSameComponents(deathComparable, sleepComparable);
     }
 }

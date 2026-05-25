@@ -74,7 +74,7 @@ public final class DeathSnapshotCalculator {
             ItemStackTemplate sleepTemplate,
             Consumer<ItemStack> onForfeited) {
 
-        if (deathStack.getItem() != sleepTemplate.item().value()) {
+        if (!isSameDreamStackIgnoringDamage(deathStack, sleepTemplate)) {
             onForfeited.accept(deathStack.copy());
             return null;
         }
@@ -90,6 +90,11 @@ public final class DeathSnapshotCalculator {
             ItemStackTemplate sleepTemplate,
             Consumer<ItemStack> onForfeited) {
 
+        if (!ItemStack.isSameItemSameComponents(deathStack, sleepTemplate.create())) {
+            onForfeited.accept(deathStack.copy());
+            return null;
+        }
+
         int keepCount = Math.min(sleepTemplate.count(), deathStack.getCount());
         int dropCount = deathStack.getCount() - keepCount;
 
@@ -98,6 +103,14 @@ public final class DeathSnapshotCalculator {
         }
 
         return sleepTemplate.withCount(keepCount);
+    }
+
+    private static boolean isSameDreamStackIgnoringDamage(ItemStack deathStack, ItemStackTemplate sleepTemplate) {
+        ItemStack deathComparable = deathStack.copy();
+        ItemStack sleepComparable = sleepTemplate.create();
+        deathComparable.remove(DataComponents.DAMAGE);
+        sleepComparable.remove(DataComponents.DAMAGE);
+        return ItemStack.isSameItemSameComponents(deathComparable, sleepComparable);
     }
 
     public record Result(List<ItemStackTemplate> pending, List<ItemStack> forfeited) {}

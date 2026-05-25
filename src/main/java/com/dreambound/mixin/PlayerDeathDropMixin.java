@@ -2,6 +2,7 @@ package com.dreambound.mixin;
 
 import com.dreambound.DreamboundMod;
 import com.dreambound.DeathSnapshotCalculator;
+import com.dreambound.ExperienceMath;
 import com.dreambound.ModComponents;
 import com.dreambound.compat.TrinketsCompat;
 import com.dreambound.component.DreamStateComponent;
@@ -54,7 +55,7 @@ public abstract class PlayerDeathDropMixin {
         if (DreamboundMod.CONFIG.restoreExperience) {
             // XP: keep min(death, sleep), drop the rest as orbs.
             // Zeroing player XP before vanilla's XP-drop call (in ServerPlayer.die) means vanilla drops 0.
-            int deathXp = player.totalExperience;
+            int deathXp = ExperienceMath.currentTotal(player);
             int keepXp  = DreamboundMod.CONFIG.applyExperienceLoss(Math.min(deathXp, component.getSnapshotXp()));
             int dropXp  = deathXp - keepXp;
             component.setPendingXp(keepXp);

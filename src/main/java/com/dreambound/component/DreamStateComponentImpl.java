@@ -1,6 +1,7 @@
 package com.dreambound.component;
 
 import com.dreambound.DreamboundMod;
+import com.dreambound.ExperienceMath;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.server.level.ServerPlayer;
@@ -83,7 +84,7 @@ public class DreamStateComponentImpl implements DreamStateComponent {
         captured.add(offhand.isEmpty() ? null : ItemStackTemplate.fromNonEmptyStack(offhand));
 
         this.snapshot = captured;
-        this.snapshotXp = player.totalExperience;
+        this.snapshotXp = ExperienceMath.currentTotal(player);
         DreamboundMod.LOGGER.debug("Dreambound: captured inventory snapshot for {}", player.getName().getString());
     }
 

@@ -20,7 +20,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Inventory;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.Items;
@@ -61,7 +60,7 @@ public class DreamboundMod implements ModInitializer {
 	private static final Map<UUID, SleepAttempt> sleepAttempts = new HashMap<>();
 
 	// UUID -> kept-item-counts; populated by the death mixin, consumed by the UG event.
-	public static final Map<UUID, Map<Item, Integer>> graveKeptCounts = new HashMap<>();
+	public static final Map<UUID, Map<StackIdentity, Integer>> graveKeptCounts = new HashMap<>();
 	public static final Set<UUID> graveCompassCandidates = new HashSet<>();
 	private static final Map<UUID, Integer> delayedRespawnRestores = new HashMap<>();
 	private static final Map<UUID, GraveCompassRestoreAttempt> pendingGraveCompassRestores = new HashMap<>();
@@ -103,16 +102,16 @@ public class DreamboundMod implements ModInitializer {
 
 	// Called by the death mixin to set up UG filtering for a given player.
 	public static void buildGraveKeptCounts(ServerPlayer player, List<ItemStackTemplate> pending) {
-		Map<Item, Integer> counts = new HashMap<>();
+		Map<StackIdentity, Integer> counts = new HashMap<>();
 		for (ItemStackTemplate t : pending) {
-			if (t != null) counts.merge(t.item().value(), t.count(), Integer::sum);
+			if (t != null) counts.merge(StackIdentity.of(t), t.count(), Integer::sum);
 		}
 		// Also count pending trinket items so UG doesn't put them in the grave.
 		if (TRINKETS_LOADED) {
 			var trinketPending = ModComponents.DREAM_STATE.get(player).getPendingTrinketItems();
 			if (trinketPending != null) {
 				for (ItemStackTemplate t : trinketPending.values()) {
-					if (t != null) counts.merge(t.item().value(), t.count(), Integer::sum);
+					if (t != null) counts.merge(StackIdentity.of(t), t.count(), Integer::sum);
 				}
 			}
 		}
